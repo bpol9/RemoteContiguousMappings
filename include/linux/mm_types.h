@@ -269,6 +269,12 @@ struct capaging_sub_vma {
   long long offset; // mapping offset of the sub_vma region
 };
 
+struct candidate_range_desc {
+	struct page *start_page;
+	unsigned long nr_pages;
+	struct zone *zone;
+};
+
 struct vm_area_struct {
 	/* The first cache line has the info for VMA tree walking. */
 
