@@ -3857,19 +3857,21 @@ bool capaging_next_fit_placement__pick_candidate(struct candidate_range_desc *ca
 
 struct page *next_fit_placement__contiguity_first(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate)
 {
-	struct candidate_range_desc candidates[8]; // assume max number of numa nodes to be 8
+	struct candidate_range_desc candidates[MAX_NUMNODES];
 	struct candidate_range_desc tmp;
 
 	struct page *selected_page;
+	struct zone *curr_zone;
 	int i, j, sep, nr_ranges;
 
-	i = 0;
-	// loop over normal zones of all nodes {
+	i = 0, node;
+	for_each_online_node(node) {
+	    curr_zone = &NODE_DATA(node)->node_zones[ZONE_NORMAL];
 	    candidates[i].start_page = NULL;
 	    capaging_next_fit_placement__get_candidate(curr_zone, order, migratytype, nr_pages, &candidates[i]);
 	    if (candidates[i].start_page != NULL)
 	       i++;
-	// }
+	}
 	
 	nr_ranges = i;
 	i = 0;
