@@ -3744,7 +3744,7 @@ struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsi
   }
   
   if(nr_pages%(1<<(MAX_ORDER-1))){
-      nr_pages = nr_pages + ((1<<MAX_ORDER-1) - nr_pages%(1<<(MAX_ORDER-1)));
+      nr_pages = nr_pages + (1<<(MAX_ORDER-1) - nr_pages%(1<<(MAX_ORDER-1)));
   }
 
   selected_page = NULL;
@@ -3821,7 +3821,7 @@ struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsi
 
 bool capaging_next_fit_placement__pick_candidate(struct candidate_range_desc *candidate, int migratetype, int order, unsigned long nr_pages, bool allocate)
 {
-    struct page *selected_page = candidate->selected_page;
+    struct page *selected_page = candidate->start_page;
     unsigned long range_size = candidate->nr_pages;
     struct zone *zone = candidate->zone;
     struct capaging_contiguity_map_range *selected_range = (struct capaging_contiguity_map_range *) selected_page->mapping;
@@ -3862,13 +3862,13 @@ struct page *next_fit_placement__contiguity_first(struct zone *zone, unsigned in
 
 	struct page *selected_page;
 	struct zone *curr_zone;
-	int i, j, sep, nr_ranges;
+	int i, j, sep, nr_ranges, node, nr_swaps;
 
-	i = 0, node;
+	i = 0;
 	for_each_online_node(node) {
 	    curr_zone = &NODE_DATA(node)->node_zones[ZONE_NORMAL];
 	    candidates[i].start_page = NULL;
-	    capaging_next_fit_placement__get_candidate(curr_zone, order, migratytype, nr_pages, &candidates[i]);
+	    capaging_next_fit_placement__get_candidate(curr_zone, order, migratetype, nr_pages, &candidates[i]);
 	    if (candidates[i].start_page != NULL)
 	       i++;
 	}
@@ -3926,7 +3926,7 @@ struct page *next_fit_placement__contiguity_first(struct zone *zone, unsigned in
 	 * Select the first available (the one for which capaging_next_fit_placement__pick_candidate returns true)
 	 */
 	for (i=0; i<nr_ranges; i++) {
-	   if (capaging_next_fit_placement__pick_candidate(candidates[i], migratetype, order, nr_pages, allocate)) {
+	   if (capaging_next_fit_placement__pick_candidate(&candidates[i], migratetype, order, nr_pages, allocate)) {
 	      selected_page = candidates[i].start_page;
 	      break;
 	   }
@@ -3952,7 +3952,7 @@ struct page *capaging_next_fit_placement(struct zone *zone, unsigned int order, 
     return NULL;
   
   if(nr_pages%(1<<(MAX_ORDER-1))){
-      nr_pages = nr_pages + ((1<<MAX_ORDER-1) - nr_pages%(1<<(MAX_ORDER-1)));
+      nr_pages = nr_pages + (1<<(MAX_ORDER-1) - nr_pages%(1<<(MAX_ORDER-1)));
   }
 
   selected_page = NULL;
