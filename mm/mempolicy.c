@@ -2116,10 +2116,15 @@ out:
 
 
 
-//CA paging routines
+/*
+ * CA paging routines
+ */
 
-// Next fit placement and first allocation for the first fault inside a VMA
+/* Next fit placement and first allocation for the first fault inside a VMA */
 extern struct page *capaging_next_fit_placement(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate);
+
+/* Next fit placement routine that gives priority to mem contiguity over numa locality */
+extern struct page *next_fit_placement_contiguity_first(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate);
 
 // Find the sub-vma region and the corresponding capaging offset
 // Calculate approximately the number of remaining unmapped pages for this (sub)vma to be used for potential next fit (re)placement
@@ -2197,23 +2202,34 @@ unsigned long _capaging_target_pfn(unsigned long addr, struct vm_area_struct *vm
   struct page *page;
   long long _offset;
 
-  //get the per-vma capaging metadata spinlock --> this is necessary because page fault path does not take the mmap_semaphore (there are concurrent faults and another thread might be updating the capaging metadata)  
+  /*
+   * Get the per-vma capaging metadata spinlock --> this is necessary because page fault path does not take the
+   * mmap_semaphore (there are concurrent faults and another thread might be updating the capaging metadata)
+   */
   spin_lock(&vma->capaging_sub_vma_lock);
-  //get the sub-vma offset to calculate target page and the number of unmapped pages 
+
+  /* Get the sub-vma offset to calculate target page and the number of unmapped pages */
   _offset = _capaging_vma_offset(addr, vma, nr_unmapped_pages);
+
   spin_unlock(&vma->capaging_sub_vma_lock);
 
-  // test and set if this is the first thread currently faulting on this vma --> allow placement and updates
+  /* test and set if this is the first thread currently faulting on this vma --> allow placement and updates */
   if(atomic_dec_and_test(&vma->capaging_allow_placement_update)){
     *allow_placement_update=1;
-    //no offset calculate, placement is necessary (this is the first fault ever under this vma)
+    /* No offset calculate, placement is necessary (this is the first fault ever under this vma) */
     if (!_offset){
       //capaging placement routine (page_alloc.c)
-      page = capaging_next_fit_placement(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE ,(vma->vm_end-vma->vm_start)>>PAGE_SHIFT, 0);
-      //calculate the offset of the mapping
+      //page = capaging_next_fit_placement(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE ,(vma->vm_end-vma->vm_start)>>PAGE_SHIFT, 0);
+
+      /* Call the next_fit_placement routine variant that gives priority to contiguity over locality */
+      page = next_fit_placement_contiguity_first(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE,
+		      (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
+
+      /* Calculate the offset of the mapping */
       _offset = ((vma->vm_start>>PAGE_SHIFT) - page_to_pfn(page));
+
+      /* Update the metadata */
       spin_lock(&vma->capaging_sub_vma_lock);
-      //update the metadata
       _capaging_vma_offset_insert(addr, vma, _offset);
       spin_unlock(&vma->capaging_sub_vma_lock);
     }

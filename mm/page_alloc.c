@@ -3731,7 +3731,7 @@ void expand_reserved_pagecache(struct page *target_page, unsigned current_order,
       if(current_order==(MAX_ORDER-1)) pr_crit("Wtf page cache!!\n");
 }
 
-struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsigned int order, int migratetype,
+struct page * capaging_next_fit_placement_get_candidate(struct zone *zone, unsigned int order, int migratetype,
 		unsigned long nr_pages, struct candidate_range_desc *candidate)
 {	
   unsigned long selected_size, current_size;
@@ -3743,8 +3743,8 @@ struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsi
     return NULL;
   }
   
-  if(nr_pages%(1<<(MAX_ORDER-1))){
-      nr_pages = nr_pages + (1<<(MAX_ORDER-1) - nr_pages%(1<<(MAX_ORDER-1)));
+  if(nr_pages % (1 << (MAX_ORDER-1))){
+      nr_pages = nr_pages + (1 << (MAX_ORDER-1) - nr_pages % (1 << (MAX_ORDER-1)));
   }
 
   selected_page = NULL;
@@ -3753,7 +3753,7 @@ struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsi
   if (!list_empty(&zone->free_area[MAX_ORDER-1].free_list[migratetype])) {
 
     /*
-     * In the rover pointer points to something invalid, update it to point at the start of the list
+     * If the rover pointer points to something invalid, update it to point at the start of the list
      *(normally this should be a bug_on case as commented out, but sometimes it happens! :( )
      */
     if (!pfn_valid(page_to_pfn(zone->capaging_next_fit_sa[migratetype])) || !PageBuddy(zone->capaging_next_fit_sa[migratetype]))
@@ -3765,7 +3765,7 @@ struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsi
     BUG_ON(!initial_page);
 
     /*
-     * and get also the corresponding contiguity map range that the page belongs to
+     * And get also the corresponding contiguity map range that the page belongs to
      *(we use the page->mapping attribute to do this fast, as it is not used when a page is free)
      */
     initial_range = (struct capaging_contiguity_map_range *) initial_page->mapping;
@@ -3779,7 +3779,7 @@ struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsi
 
         if (current_range == initial_range) {
 	  /* rover pointer may be in the middle of a contiguous range */
-          current_size = current_range->nr_free - (page_to_pfn(initial_page)-page_to_pfn(current_range->first_page));
+          current_size = current_range->nr_free - (page_to_pfn(initial_page) - page_to_pfn(current_range->first_page));
 	}
         else {
           current_size = current_range->nr_free;
@@ -3796,7 +3796,7 @@ struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsi
             selected_page = current_range->first_page;
           
           /* if you find a large enough range break */
-          if (selected_size>=nr_pages)
+          if (selected_size >= nr_pages)
             break;
         }
     }
@@ -3819,7 +3819,7 @@ struct page * capaging_next_fit_placement__get_candidate(struct zone *zone, unsi
   return selected_page;
 }
 
-bool capaging_next_fit_placement__pick_candidate(struct candidate_range_desc *candidate, int migratetype, int order, unsigned long nr_pages, bool allocate)
+bool capaging_next_fit_placement_pick_candidate(struct candidate_range_desc *candidate, int migratetype, int order, unsigned long nr_pages, bool allocate)
 {
     struct page *selected_page = candidate->start_page;
     unsigned long range_size = candidate->nr_pages;
@@ -3833,15 +3833,15 @@ bool capaging_next_fit_placement__pick_candidate(struct candidate_range_desc *ca
     }
     /* Otherwise update it to point to the next range */
     else {
-      if (&list_next_entry(selected_range,list)->list == &zone->capaging_contiguity_map[migratetype]) //wrap-around over the map -- circle
-        zone->capaging_next_fit_sa[migratetype] = list_first_entry(&zone->capaging_contiguity_map[migratetype],struct capaging_contiguity_map_range,list)->first_page;
+      if (&list_next_entry(selected_range, list)->list == &zone->capaging_contiguity_map[migratetype]) /* wrap-around over the map -- circle */
+        zone->capaging_next_fit_sa[migratetype] = list_first_entry(&zone->capaging_contiguity_map[migratetype], struct capaging_contiguity_map_range, list)->first_page;
       else
-        zone->capaging_next_fit_sa[migratetype] = list_next_entry(selected_range,list)->first_page;
+        zone->capaging_next_fit_sa[migratetype] = list_next_entry(selected_range, list)->first_page;
     }
    
     /* if requested, allocate the first page of the block */
     if (allocate) {
-      if (!PageBuddy(selected_page) || page_order(selected_page)!=(MAX_ORDER-1) || PageSlab(selected_page)){
+      if (!PageBuddy(selected_page) || page_order(selected_page) != (MAX_ORDER-1) || PageSlab(selected_page)){
           WARN_ON(1); 
           return false;
       }
@@ -3855,7 +3855,7 @@ bool capaging_next_fit_placement__pick_candidate(struct candidate_range_desc *ca
     return true;
 }
 
-struct page *next_fit_placement__contiguity_first(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate)
+struct page *next_fit_placement_contiguity_first(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate)
 {
 	struct candidate_range_desc candidates[MAX_NUMNODES];
 	struct candidate_range_desc tmp;
@@ -3868,7 +3868,7 @@ struct page *next_fit_placement__contiguity_first(struct zone *zone, unsigned in
 	for_each_online_node(node) {
 	    curr_zone = &NODE_DATA(node)->node_zones[ZONE_NORMAL];
 	    candidates[i].start_page = NULL;
-	    capaging_next_fit_placement__get_candidate(curr_zone, order, migratetype, nr_pages, &candidates[i]);
+	    capaging_next_fit_placement_get_candidate(curr_zone, order, migratetype, nr_pages, &candidates[i]);
 	    if (candidates[i].start_page != NULL)
 	       i++;
 	}
@@ -3923,10 +3923,10 @@ struct page *next_fit_placement__contiguity_first(struct zone *zone, unsigned in
 
 	/*
 	 * Ranges are already sorted in order of preference.
-	 * Select the first available (the one for which capaging_next_fit_placement__pick_candidate returns true)
+	 * Select the first available (the one for which capaging_next_fit_placement_pick_candidate returns true)
 	 */
 	for (i=0; i<nr_ranges; i++) {
-	   if (capaging_next_fit_placement__pick_candidate(&candidates[i], migratetype, order, nr_pages, allocate)) {
+	   if (capaging_next_fit_placement_pick_candidate(&candidates[i], migratetype, order, nr_pages, allocate)) {
 	      selected_page = candidates[i].start_page;
 	      break;
 	   }
@@ -3934,6 +3934,7 @@ struct page *next_fit_placement__contiguity_first(struct zone *zone, unsigned in
 
 	return selected_page;
 }
+EXPORT_SYMBOL_GPL(next_fit_placement_contiguity_first);
 
 // CA paging core next fit placement routine.
 // Searches for a free range with size >= nr_pages using the contiguity map
