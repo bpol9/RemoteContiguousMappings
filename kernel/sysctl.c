@@ -67,6 +67,7 @@
 #include <linux/bpf.h>
 #include <linux/mount.h>
 #include <linux/pipe_fs_i.h>
+#include <linux/contiguity.h>
 
 #include <linux/uaccess.h>
 #include <asm/processor.h>
@@ -1239,6 +1240,15 @@ static struct ctl_table kern_table[] = {
 };
 
 static struct ctl_table vm_table[] = {
+  {
+		.procname	= "contiguity_priority_over_numa_placement",
+		.data		= &sysctl_contiguity_priority_over_numa_placement,
+		.maxlen		= sizeof(sysctl_contiguity_priority_over_numa_placement),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &two,
+	},
 	{
 		.procname	= "overcommit_memory",
 		.data		= &sysctl_overcommit_memory,

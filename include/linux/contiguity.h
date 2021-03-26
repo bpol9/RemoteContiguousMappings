@@ -36,6 +36,7 @@ enum {
   NUM_FAIL_STAT
 };
 
+extern int sysctl_contiguity_priority_over_numa_placement;
 extern atomic64_t contiguity_failure[MAX_ORDER][NUM_CONTIG_FAILURES];
 extern atomic64_t contiguity_success[MAX_ORDER][NUM_CONTIG_SUCCESS];
 extern unsigned long contiguity_bucket[MAX_ORDER];

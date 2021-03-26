@@ -76,6 +76,7 @@
 #include<linux/contiguity.h>
 
 
+int sysctl_contiguity_priority_over_numa_placement=0;
 /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
 static DEFINE_MUTEX(pcp_batch_high_lock);
 #define MIN_PERCPU_PAGELIST_FRACTION	(8)
@@ -4269,7 +4270,12 @@ fail:
     spin_lock_irqsave(&zone_original->lock, flags); 
   }
   if(order == HPAGE_PMD_ORDER){
-    page = capaging_next_fit_placement(zone_original, order, migratetype, capaging_next_fit_placement_request_size, 1);
+    
+    if (sysctl_contiguity_priority_over_numa_placement)
+      page = next_fit_placement_contiguity_first(zone_original, order, migratetype, capaging_next_fit_placement_request_size, 1);
+    else
+      page = capaging_next_fit_placement(zone_original, order, migratetype, capaging_next_fit_placement_request_size, 1);
+
   }
   spin_unlock_irqrestore(&zone_original->lock,flags); 
   return page;
