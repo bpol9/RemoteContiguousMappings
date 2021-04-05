@@ -2221,14 +2221,14 @@ unsigned long _capaging_target_pfn(unsigned long addr, struct vm_area_struct *vm
       //capaging placement routine (page_alloc.c)
       //page = capaging_next_fit_placement(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE ,(vma->vm_end-vma->vm_start)>>PAGE_SHIFT, 0);
 
-      if (sysctl_contiguity_priority_over_numa_placement)
+      if (sysctl_contiguity_priority_over_numa_placement) {
       /* Call the next_fit_placement routine variant that gives priority to contiguity over locality */
-        page = next_fit_placement_contiguity_first(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE,
-		        (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
-      else
-        page = capaging_next_fit_placement(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE,
-		        (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
-
+        page = next_fit_placement_contiguity_first(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE, (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
+      }
+      else {
+	/* Call the next_fit_placement variant that gives priority to numa locality */
+        page = capaging_next_fit_placement(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE, (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
+      }
 
       /* Calculate the offset of the mapping */
       _offset = ((vma->vm_start>>PAGE_SHIFT) - page_to_pfn(page));
