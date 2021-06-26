@@ -76,7 +76,12 @@
 #include<linux/contiguity.h>
 
 
-int sysctl_contiguity_priority_over_numa_placement=0;
+//int sysctl_contiguity_priority_over_numa_placement = 0;
+//int sysctl_capaging_weight = 0;
+//int sysctl_numa_policy_weight = 0;
+//int sysctl_locality_boost = 15;
+int sysctl_capaging_min_local_coverage = 10;
+int sysctl_capaging_min_remote_coverage = 30;
 /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
 static DEFINE_MUTEX(pcp_batch_high_lock);
 #define MIN_PERCPU_PAGELIST_FRACTION	(8)
@@ -3733,7 +3738,7 @@ void expand_reserved_pagecache(struct page *target_page, unsigned current_order,
 }
 
 struct page * capaging_next_fit_placement_get_candidate(struct zone *zone, unsigned int order, int migratetype,
-		unsigned long nr_pages, struct candidate_range_desc *candidate)
+		unsigned long nr_pages, int local_nid, struct candidate_range_desc *candidate)
 {	
   unsigned long selected_size, current_size;
   struct capaging_contiguity_map_range *next_range, *current_range, *selected_range, *initial_range, *prev_range;
@@ -3808,6 +3813,7 @@ struct page * capaging_next_fit_placement_get_candidate(struct zone *zone, unsig
      candidate->start_page = selected_page;
      candidate->nr_pages = selected_size;
      candidate->zone = zone;
+     candidate->distance_local = node_distance(zone_to_nid(zone), local_nid);
   }
   else {
      candidate->start_page = NULL;
@@ -3863,6 +3869,125 @@ bool capaging_next_fit_placement_pick_candidate(struct candidate_range_desc *can
     return true;
 }
 
+/*
+int phys_range_score_with_locality_boost(struct candidate_range_desc *candidate, int local_nid, unsigned long request_size) {
+	int nid, distance_from_local, score;
+	unsigned long range_size;
+
+	BUG_ON(candidate == NULL);
+	BUG_ON(local_nid < 0 || local_nid >= MAX_NUMNODES);
+	BUG_ON(request_size == 0 || request_size % (1 << (MAX_ORDER-1)) != 0);
+
+	nid = zone_to_nid(candidate->zone);
+	BUG_ON(nid < 0 || nid >= MAX_NUMNODES);
+	distance_from_local = node_distance(nid, local_nid);
+	
+	range_size = candidate->nr_pages;
+	BUG_ON(range_size == 0 || range_size % (1 << (MAX_ORDER-1)) != 0);
+	if (range_size > request_size)
+		range_size = request_size;
+
+	score = ((range_size * 100) / request_size + sysctl_locality_boost) * ((LOCAL_DISTANCE * 100) / distance_from_local);
+	candidate->score = score;
+	return score;
+
+}
+
+int set_phys_range_score(struct candidate_range_desc *candidate, int local_nid, unsigned long virtual_range_size) {
+	int nid, distance_from_local_node, numa_component, capaging_component, score;
+	unsigned long physical_range_size;
+
+	BUG_ON(candidate == NULL);
+	BUG_ON(local_nid < 0 || local_nid >= MAX_NUMNODES);
+	BUG_ON(virtual_range_size == 0 || virtual_range_size % (1 << (MAX_ORDER-1)) != 0);
+
+	nid = zone_to_nid(candidate->zone);
+	BUG_ON(nid < 0 || nid >= MAX_NUMNODES);
+	distance_from_local_node = node_distance(nid, local_nid);
+	numa_component = ((LOCAL_DISTANCE * 100) / distance_from_local_node) * sysctl_numa_policy_weight;
+
+	physical_range_size = candidate->nr_pages;
+	BUG_ON(physical_range_size == 0 || physical_range_size % (1 << (MAX_ORDER-1)) != 0);
+	capaging_component = ( (physical_range_size >= virtual_range_size) ? 100 : (physical_range_size * 100) / virtual_range_size ) * sysctl_capaging_weight;
+
+	score = numa_component + capaging_component;
+	candidate->score = score;
+	return score;
+}
+*/
+
+struct page *next_fit_placement_weighted(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate)
+{
+	struct candidate_range_desc candidates[2]; // hardcoded, bad
+	struct candidate_range_desc tmp;
+
+	struct page *selected_page;
+	struct zone *curr_zone;
+	int i, j, sep, nr_candidates, node, nr_swaps, local_nid, coverage, min_coverage;
+
+  	if(!nr_pages)
+    	   return NULL;
+
+  	if(nr_pages % (1 << (MAX_ORDER-1))){
+      	   nr_pages = nr_pages + ((1 << MAX_ORDER-1) - nr_pages % (1 << (MAX_ORDER-1)));
+  	}
+	local_nid = zone_to_nid(zone);
+
+	i = 0;
+	for_each_online_node(node) {
+	    curr_zone = &NODE_DATA(node)->node_zones[ZONE_NORMAL];
+	    candidates[i].start_page = NULL;
+	    capaging_next_fit_placement_get_candidate(curr_zone, order, migratetype, nr_pages, local_nid, &candidates[i]);
+	    if (candidates[i].start_page != NULL)
+	       i++;
+	}
+	
+	nr_candidates = i;
+	/* Calculate physical range scores */
+	//for (i=0; i<nr_candidates; i++) {
+	//	phys_range_score_with_locality_boost(&candidates[i], local_nid, nr_pages);
+	//}
+
+	/* Bubblesort by distance to local node. Shorter distances first. */
+	j = nr_candidates - 1;
+	do {
+	   nr_swaps = 0;
+	   for (i=0; i<j; i++) {
+  	      if (candidates[i].distance_local > candidates[i+1].distance_local) {
+	         tmp = candidates[i];
+	         candidates[i] = candidates[i+1];
+	         candidates[i+1] = tmp;
+	         ++nr_swaps;
+	      }
+	   }
+	   --j;
+	} while (nr_swaps > 0);
+
+
+	selected_page = NULL;
+	/*
+	 * Ranges are already sorted in order of preference.
+	 * Select the first available (the one for which capaging_next_fit_placement_pick_candidate returns true)
+	 */
+	for (i=0; i<nr_candidates; i++) {
+	   BUG_ON(candidates[i].start_page == NULL);
+	   coverage = (candidates[i].nr_pages * 100) / nr_pages;
+	   min_coverage = candidates[i].distance_local > LOCAL_DISTANCE ? sysctl_capaging_min_remote_coverage : sysctl_capaging_min_local_coverage;
+	   if ((coverage >= min_coverage) && (capaging_next_fit_placement_pick_candidate(&candidates[i], migratetype, order, nr_pages, allocate))) {
+	      selected_page = candidates[i].start_page;
+	      break;
+	   }
+	}
+
+	if (i == nr_candidates) {
+	   printk("[next_fit_placement_weighted]: all candidate ranges offer less than minimum coverage. returning NULL..\n");
+	}
+
+	return selected_page;
+}
+EXPORT_SYMBOL_GPL(next_fit_placement_weighted);
+
+/*
 struct page *next_fit_placement_contiguity_first(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate)
 {
 	struct candidate_range_desc candidates[MAX_NUMNODES];
@@ -3902,10 +4027,8 @@ struct page *next_fit_placement_contiguity_first(struct zone *zone, unsigned int
 	   }
 	}
 
-	/* Points to the start of smaller than requested ranges */
 	sep = i;
 
-	/* Sort bigger than requested ranges in ascending order */
 	j = sep-1;
 	do {
 	   nr_swaps = 0;
@@ -3920,7 +4043,6 @@ struct page *next_fit_placement_contiguity_first(struct zone *zone, unsigned int
 	   --j;
 	} while (nr_swaps > 0);
 
-	/* Sort smaller than requested ranges in descending order */
 	j = nr_ranges - 1;
 	do {
 	   nr_swaps = 0;
@@ -3937,10 +4059,6 @@ struct page *next_fit_placement_contiguity_first(struct zone *zone, unsigned int
 
 	selected_page = NULL;
 
-	/*
-	 * Ranges are already sorted in order of preference.
-	 * Select the first available (the one for which capaging_next_fit_placement_pick_candidate returns true)
-	 */
 	for (i=0; i<nr_ranges; i++) {
 	   BUG_ON(candidates[i].start_page == NULL);
 	   if (capaging_next_fit_placement_pick_candidate(&candidates[i], migratetype, order, nr_pages, allocate)) {
@@ -3956,6 +4074,7 @@ struct page *next_fit_placement_contiguity_first(struct zone *zone, unsigned int
 	return selected_page;
 }
 EXPORT_SYMBOL_GPL(next_fit_placement_contiguity_first);
+*/
 
 // CA paging core next fit placement routine.
 // Searches for a free range with size >= nr_pages using the contiguity map
@@ -4116,9 +4235,7 @@ struct page *rmqueue_capaging(struct zone *preferred_zone,
    * function get_page_from_freelist(). So maybe we must repeat that zone check here before using
    * the page from this zone.
    */
-  if (sysctl_contiguity_priority_over_numa_placement) {
-    zone = zone_target;
-  }
+  zone = zone_target;
 
   // if the pfn is out of the requested zone (and NUMA node), fail
   if (bad_range(zone,capaging_target_page) || zone_to_nid(zone_target)!=zone_to_nid(zone)){
@@ -4293,7 +4410,7 @@ fail:
     spin_lock_irqsave(&zone_original->lock, flags); 
   }
   if(order == HPAGE_PMD_ORDER){
-    
+    /*
     if (sysctl_contiguity_priority_over_numa_placement) {
       printk("[rmqueue_capaging]: allocation failed, triggering replacement with contiguity-first policy\n");
       page = next_fit_placement_contiguity_first(zone_original, order, migratetype, capaging_next_fit_placement_request_size, 1);
@@ -4302,6 +4419,8 @@ fail:
       printk("[rmqueue_capaging]: allocation failed, triggering replacement with numa mem policy\n");
       page = capaging_next_fit_placement(zone_original, order, migratetype, capaging_next_fit_placement_request_size, 1);
     }
+    */
+    page = next_fit_placement_weighted(zone_original, order, migratetype, capaging_next_fit_placement_request_size, 1);
 
   }
   spin_unlock_irqrestore(&zone_original->lock,flags); 

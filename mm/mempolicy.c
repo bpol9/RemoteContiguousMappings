@@ -2126,6 +2126,9 @@ extern struct page *capaging_next_fit_placement(struct zone *zone, unsigned int 
 /* Next fit placement routine that gives priority to mem contiguity over numa locality */
 extern struct page *next_fit_placement_contiguity_first(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate);
 
+/* Next fit placement routine that asigns scores to candidate physical ranges based on user-defined weights */
+extern struct page *next_fit_placement_weighted(struct zone *zone, unsigned int order, int migratetype, unsigned long nr_pages, bool allocate);
+
 // Find the sub-vma region and the corresponding capaging offset
 // Calculate approximately the number of remaining unmapped pages for this (sub)vma to be used for potential next fit (re)placement
 long long _capaging_vma_offset(unsigned long addr, struct vm_area_struct *vma, unsigned long *nr_unmapped_pages){
@@ -2221,14 +2224,16 @@ unsigned long _capaging_target_pfn(unsigned long addr, struct vm_area_struct *vm
       //capaging placement routine (page_alloc.c)
       //page = capaging_next_fit_placement(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE ,(vma->vm_end-vma->vm_start)>>PAGE_SHIFT, 0);
 
-      if (sysctl_contiguity_priority_over_numa_placement) {
+      page = next_fit_placement_weighted(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE, (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
+
+      //if (sysctl_contiguity_priority_over_numa_placement) {
       /* Call the next_fit_placement routine variant that gives priority to contiguity over locality */
-        page = next_fit_placement_contiguity_first(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE, (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
-      }
-      else {
+      //  page = next_fit_placement_contiguity_first(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE, (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
+      //}
+      //else {
 	/* Call the next_fit_placement variant that gives priority to numa locality */
-        page = capaging_next_fit_placement(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE, (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
-      }
+      //  page = capaging_next_fit_placement(&NODE_DATA(node)->node_zones[ZONE_NORMAL], order, MIGRATE_MOVABLE, (vma->vm_end - vma->vm_start) >> PAGE_SHIFT, 0);
+      //}
 
       /* Calculate the offset of the mapping */
       _offset = ((vma->vm_start>>PAGE_SHIFT) - page_to_pfn(page));

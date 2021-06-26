@@ -273,6 +273,8 @@ struct candidate_range_desc {
 	struct page *start_page;
 	unsigned long nr_pages;
 	struct zone *zone;
+	int score;
+	int distance_local;
 };
 
 struct vm_area_struct {

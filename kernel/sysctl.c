@@ -1240,7 +1240,8 @@ static struct ctl_table kern_table[] = {
 };
 
 static struct ctl_table vm_table[] = {
-  {
+	/*
+  	{
 		.procname	= "contiguity_priority_over_numa_placement",
 		.data		= &sysctl_contiguity_priority_over_numa_placement,
 		.maxlen		= sizeof(sysctl_contiguity_priority_over_numa_placement),
@@ -1248,6 +1249,52 @@ static struct ctl_table vm_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 		.extra2		= &two,
+	},
+	{
+		.procname	= "capaging_weight",
+		.data		= &sysctl_capaging_weight,
+		.maxlen		= sizeof(sysctl_capaging_weight),
+		.mode 		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one_hundred,
+	},
+	{
+		.procname	= "numa_policy_weight",
+		.data		= &sysctl_numa_policy_weight,
+		.maxlen		= sizeof(sysctl_numa_policy_weight),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one_hundred,
+	},
+	{
+		.procname	= "locality_boost",
+		.data		= &sysctl_locality_boost,
+		.maxlen		= sizeof(sysctl_locality_boost),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one_hundred,
+	},
+	*/
+	{
+		.procname	= "capaging_min_local_coverage",
+		.data		= &sysctl_capaging_min_local_coverage,
+		.maxlen		= sizeof(sysctl_capaging_min_local_coverage),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one_hundred,
+	},
+	{
+		.procname	= "capaging_min_remote_coverage",
+		.data		= &sysctl_capaging_min_remote_coverage,
+		.maxlen		= sizeof(sysctl_capaging_min_remote_coverage),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one_hundred,
 	},
 	{
 		.procname	= "overcommit_memory",

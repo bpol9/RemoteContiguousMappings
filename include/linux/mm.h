@@ -129,7 +129,12 @@ extern int sysctl_max_map_count;
 extern unsigned long sysctl_user_reserve_kbytes;
 extern unsigned long sysctl_admin_reserve_kbytes;
 
-extern int sysctl_contiguity_priority_over_numa_placement;
+//extern int sysctl_contiguity_priority_over_numa_placement;
+//extern int sysctl_capaging_weight;
+//extern int sysctl_numa_policy_weight;
+//extern int sysctl_locality_boost;
+extern int sysctl_capaging_min_local_coverage;
+extern int sysctl_capaging_min_remote_coverage;
 extern int sysctl_overcommit_memory;
 extern int sysctl_overcommit_ratio;
 extern unsigned long sysctl_overcommit_kbytes;
