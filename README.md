@@ -6,5 +6,6 @@ RCM is a minor experimental extension of the CAPaging Linux kernel ([paper](http
 - Iterate over the sorted list of ranges
 - If current range is the local and if *range_len >= a \* vma_length*, place vma there
 - Else if current range is remote and if *range_len >= b \* vma_length*, place vma there
+- If no range meets the above criteria, place vma in the local range
 
 where *a*, *b* are percentages (between 0% and 100%) and configurable through /proc/sys/vm/capaging_min_local_coverage and /proc/sys/vm/capaging_min_remote_coverage respectively. They can be set to the same value, or *b* can be set higher to make the condition for remote placements stricter.
